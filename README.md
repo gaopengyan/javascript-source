@@ -200,3 +200,252 @@ function compose(...funcs) {
 }
 let res = compose(fn1, fn3, fn2, fn4)(20, 30);
 ```
+
+### new及Object.create()
+
+```js
+Object.create = function create(prototype) {
+	if (prototype === null || typeof prototype !== "object") {
+		throw new TypeError(`Object prototype may only be an Object: ${prototype}`);
+	}
+	// 创建一个类,创建这个类的实例,实例.__proto__=类.prototype；而我们让类.prototype等于传递的prototype；
+	function Temp() {}
+	Temp.prototype = prototype;
+	return new Temp;
+};
+
+//=============================================
+function Dog(name) {
+	this.name = name;
+}
+Dog.prototype.bark = function () {
+	console.log('wangwang');
+}
+Dog.prototype.sayName = function () {
+	console.log('my name is ' + this.name);
+}
+// Func要操作的这个类（最后要创建这个类的实例）
+// ARGS存储未来传递给Func类的实参
+function _new(Func, ...args) {
+	// 1.创建一个FUNC的实例对象（实例.__proto__=>类.prototype）
+	// 在IE浏览器中,禁止我们使用__proto__（也可以理解为IE并没有提供给我们__proto__这个属性，防止我们去改变原型指向）
+	/* let obj = {};
+	obj.__proto__ = Func.prototype; */
+	let obj = Object.create(Func.prototype);
+
+	// 2.把FUNC当做普通函数执行（让方法中的THIS指向创建的实例）
+	let result = Func.call(obj, ...args);
+
+	// 3.分析函数执行的返回值（没有返回值或者返回的是原始值类型则默认都返回创建的实例，否则以函数自身返回的为主）
+	if (result !== null && /^(object|function)$/.test(typeof result)) {
+		return result;
+	}
+	return obj;
+} 
+let sanmao = _new(Dog, '三毛');
+sanmao.bark(); //=>"wangwang"
+sanmao.sayName(); //=>"my name is 三毛"
+console.log(sanmao instanceof Dog); //=>true
+```
+
+### 深浅克隆
+
+#### 浅克隆
+
+```js
+// 实现对象的克隆有哪些办法（克隆：内存地址是不一样的）
+// Object.assign：浅比较/浅克隆
+// {...obj}：展开运算符，也只能展开第一级，也是浅克隆
+```
+
+```js
+// 实现数组的克隆
+// slice/concat... 这些都是浅克隆 
+// forEach/map/reduce... 遍历也只是遍历第一级
+```
+
+#### 深克隆
+
+##### 1.暴力法：把原始数据直接变为字符串，再把字符串变为对象（此时浏览器要重新开辟所有的内存空间），实现出深度克隆/深拷贝
+
+出现的问题：正则会变为空对象/函数直接消失/日期直接变为字符串/Symbol直接消失/BigInt直接报错/undefined也会直接消失....
+
+##### 2.
+
+缺点：1.我们的方法会形成死递归，循环引用 2.考虑不全
+
+```js
+// 深克隆/深拷贝
+function cloneDeep(obj) {
+	const constructor = obj.constructor; //想克隆一个和Obj一样的数据类型 
+	if (obj === null) return null;
+	if (typeof obj !== "object") return obj;//如果不是对象直接返回  基本类型或函数...
+	//正则和日期需要特殊处理
+	if (/^(RegExp|Date)$/i.test(constructor.name)) return new constructor(obj);
+	let clone = new constructor();
+	for (let key in obj) {
+		if (!obj.hasOwnProperty(key)) break;
+		//是私有的进行克隆
+		clone[key] = cloneDeep(obj[key]);
+	}
+	return clone;
+}
+```
+
+```js
+
+```
+
+### 实现instanceOf
+
+```js
+//=>example：要检测的实例
+//=>classFunc:要检测的类//example通过原型链查找正好知道classFunc的原型相等  则是他的实例
+function instance_of(example, classFunc) {
+	let classPrototype = classFunc.prototype,
+		proto = Object.getPrototypeOf(example);//proto =example.__proto__(ie不兼容)
+	while (true) {
+		if (proto === null) {
+			// 到了Object.prototype.__proto__
+			return false;
+		}
+		if (proto === classPrototype) {
+			// 在当前实例的原型链上找到了当前类
+			return true;
+		}
+		proto = Object.getPrototypeOf(proto);//proto =proto.__proto__(ie不兼容)
+	}
+}
+let res = instance_of([12, 23], Array);
+```
+
+
+### promise
+
+```js
+(function () {
+    // constructor
+    function MyPromise(executor) {
+        // 参数合法校验
+        if (typeof executor !== "function") {
+            throw new TypeError('MyPromise resolver ' + executor + ' is not a function');
+        }
+
+        // 设置实例的私有属性
+        var _this = this;
+        this.PromiseStatus = 'pending';
+        this.PromiseValue = undefined;
+        this.resolveFunc = function () {};
+        this.rejectFunc = function () {};
+
+        // 修改实例的状态和value：只有当前状态为pending才能修改状态
+        function change(status, value) {
+            if (_this.PromiseStatus !== "pending") return;
+            _this.PromiseStatus = status;
+            _this.PromiseValue = value;
+            // 通知基于.then注入的某个方法执行（异步的）
+            var delayTimer = setTimeout(function () {
+                clearTimeout(delayTimer);
+                delayTimer = null;
+
+                var status = _this.PromiseStatus,
+                    value = _this.PromiseValue;
+                status === "fulfilled" ?
+                    _this.resolveFunc.call(_this, value) :
+                    _this.rejectFunc.call(_this, value);
+            }, 0);
+        }
+
+        // new MyPromise的时候会立即把executor函数执行
+        // executor函数执行出现错误，也会把实例的状态改为失败，且value是失败的原因
+        try {
+            executor(function resolve(value) {
+                change('fulfilled', value);
+            }, function reject(reason) {
+                change('rejected', reason);
+            });
+        } catch (err) {
+            change('rejected', err.message);
+        }
+    }
+
+    // MyPromise.prototype
+    MyPromise.prototype.then = function (resolveFunc, rejectFunc) {
+        // 参数不传默认值的处理：目的是实现状态的顺延
+        if (typeof resolveFunc !== "function") {
+            resolveFunc = function (value) {
+                return MyPromise.resolve(value);
+            };
+        }
+        if (typeof rejectFunc !== "function") {
+            rejectFunc = function (reason) {
+                return MyPromise.reject(reason);
+            };
+        }
+
+        var _this = this;
+        return new MyPromise(function (resolve, reject) {
+            // 我们返回的新实例的成功和失败（执行resolve/reject）
+            // 由resolveFunc/rejectFunc执行是否报错来决定（或者返回值是否为新的MyPromise实例来决定）
+            _this.resolveFunc = function (value) {
+                try {
+                    var x = resolveFunc.call(_this, value);
+                    x instanceof MyPromise ? x.then(resolve, reject) : resolve(x);
+                } catch (err) {
+                    reject(err.message);
+                }
+            };
+            _this.rejectFunc = function (reason) {
+                try {
+                    var x = rejectFunc.call(_this, reason);
+                    x instanceof MyPromise ? x.then(resolve, reject) : resolve(x);
+                } catch (err) {
+                    reject(err.message);
+                }
+            };
+        });
+    };
+    MyPromise.prototype.catch = function (rejectFunc) {
+        return this.then(null, rejectFunc);
+    };
+
+    // 把MyPromise当作对象
+    MyPromise.resolve = function (value) {
+        return new MyPromise(function (resolve) {
+            resolve(value);
+        });
+    };
+    MyPromise.reject = function (reason) {
+        return new MyPromise(function (_, reject) {
+            reject(reason);
+        });
+    };
+    MyPromise.all = function (promiseArr) {
+        return new MyPromise(function (resolve, reject) {
+            var index = 0,
+                values = [];
+            for (var i = 0; i < promiseArr.length; i++) {
+                // 利用闭包的方式保存循环的每一项索引
+                (function (i) {
+                    var item = promiseArr[i];
+                    // 如果当前项不是Promise:直接算作当前项成功
+                    !(item instanceof MyPromise) ? item = MyPromise.resolve(item): null;
+                    item.then(function (value) {
+                        index++;
+                        values[i] = value;
+                        if (index >= promiseArr.length) {
+                            // 所有的实例都是成功的
+                            resolve(values);
+                        }
+                    }).catch(function (reason) {
+                        // 只要有一个失败，整体就是失败的
+                        reject(reason);
+                    });
+                })(i);
+            }
+        });
+    };
+
+    window.MyPromise = MyPromise;
+})();
+```
