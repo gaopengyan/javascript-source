@@ -449,3 +449,91 @@ let res = instance_of([12, 23], Array);
     window.MyPromise = MyPromise;
 })();
 ```
+
+### 数据类型检测
+ * JS中的数据类型检测
+ *   1. typeof xxx
+ *     =>typeof null => "object" 
+ *     =>typeof 数组/正则/日期/对象  =>"object"
+ *   2. xxx instanceof xxx
+ *     检测当前实例是否属于这个类（也可以用来检测数据类型：对typeof的补充）
+ *     =>不能用来处理基本数据类型(基本数据类型基于构造函数方式创建的实例是可以的)
+ *     =>只要出现在实例的原型链上的类，检测结果都是TRUE（页面中可以手动更改原型链的指向，这样导致检测结果不一定准确）
+ *   3. xxx.constructor===xxx
+ *     =>constructor也是一样可以被更改的（这个检测结果也不一定准确）
+ *     =>基本数据类型也可以处理
+ *   4. Object.prototype.toString：其它类的原型上的toString基本上都是转换为字符串的，只有Object原型上的是检测数据类型的  返回结果 "[object 所属的类]"
+ *     =>Object.prototype.toString执行，它中的this是谁，就是检测谁的数据类型
+ *     =>Object.prototype.toString.call(xxx)
+ *     =>({}).toString.call(xxx)
+ *     =>最强大的检测数据类型方法（基本上没有弊端）
+
+```js 
+// 建立数据类型匹配的映射表
+var typeArr = ["Boolean", "Number", "String", "Function", "Array", "Date", "RegExp", "Object", "Error", "Symbol"];
+typeArr.forEach(function (name) {
+	class2type["[object " + name + "]"] = name.toLowerCase();
+});
+
+// 检测数据类型
+function toType(obj) {
+	// undefined/null
+	if (obj == null) {
+		return obj + "";
+	}
+	// 基本数据类型基于typeof处理，引用数据类型基于Object.prototype.toString处理
+	// typeof new Number(10) => "object" 但是基于这个方法检测出来的是'number'（这才是我们想要的） 所以映射表中也有基本数据类型值的映射
+	return typeof obj === "object" || typeof obj === "function" ?
+		class2type[toString.call(obj)] || "object" :
+		typeof obj;
+}
+
+// 检测是否为函数
+var isFunction = function isFunction(obj) {
+	return typeof obj === "function" && typeof obj.nodeType !== "number";
+};
+
+// 检测是否为window
+var isWindow = function isWindow(obj) {
+	return obj != null && obj === obj.window;
+};
+
+// 检测是否为数组或者类数组
+function isArrayLike(obj) {
+	var length = !!obj && "length" in obj && obj.length,
+		type = toType(obj);
+	if (isFunction(obj) || isWindow(obj)) {
+		return false;
+	}
+	return type === "array" || length === 0 ||
+		typeof length === "number" && length > 0 && (length - 1) in obj;
+}
+
+// 检测是否为空对象
+function isEmptyObject(obj) {
+	// 保证它是一个对象
+	if (!obj || toType(obj) !== "object") {
+		return false;
+	}
+	for (var key in obj) {
+		if (!hasOwn.call(obj, key)) break;
+		return false;
+	}
+	return true;
+}
+
+// 检测是否为纯粹的对象：直属原型链是Object.prototype
+function isPlainObject(obj) {
+	var proto, Ctor;
+	if (!obj || toType(obj) !== "object") {
+		return false;
+	}
+	proto = getProto(obj);
+	// Objects with no prototype (e.g., `Object.create( null )`) are plain
+	if (!proto) {
+		return true;
+	}
+	Ctor = hasOwn.call(proto, "constructor") && proto.constructor;
+	return typeof Ctor === "function" && fnToString.call(Ctor) === ObjectFunctionString;
+}
+```
