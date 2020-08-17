@@ -64,3 +64,139 @@ Function.prototype.bind = function bind(context, ...params) {
 
 ### 防抖
 
+防抖：在用户频繁触发的时候，我们只识别一次（识别第一次/识别最后一次）
+
+第一次点击，没有立即执行，等待500MS，看看这个时间内有没有触发第二次，
+有触发第二次说明在频繁点击，不去执行我们的事情（继续看第三次和第二次间隔...）；如果没有触发第二次，则认为非频繁点击，此时去触发；
+```js
+
+/*
+ * debounce：实现函数的防抖（目的是频繁触发中只执行一次）
+ *  @params
+ *     func:需要执行的函数
+ *     wait:检测防抖的间隔频率
+ *     immediate:是否是立即执行（如果为TRUE是控制第一次触发的时候就执行函数，默认FALSE是以最后一次触发为准）
+ *  @return
+ *     可被调用执行的函数
+ */
+function debounce(func, wait = 500, immediate = false) {
+	let timer=null;
+	return function anonymous(){
+		let now = immediate && !timer;//以第一次执行为准
+		clearTimeout(timer);//在wait时间内第二次处罚就清除
+		timer=setTimeout(()=>{
+			timer=null
+			// 执行函数:注意保持THIS和参数的完整度 //默认在最后一次触发
+			!immediate ? func.call(this,...params):null//在wait时间内没有出发第二次就执行
+		},wait)
+		//默认第一次执行
+		now ? func.call(this,...params):null
+	}
+}
+
+```
+
+### 节流
+
+```js
+/*
+ * throttle：实现函数的节流（目的是频繁触发中缩减频率）
+ *   @params
+ *      func:需要执行的函数
+ *      wait:自己设定的间隔时间(频率)
+ *   @return
+ *      可被调用执行的函数
+ */
+function throttle(func, wait = 500) {
+	let timer = null,
+		previous = 0; //记录上一次操作时间
+	return function anonymous(...params) {
+		let now = new Date(), //当前操作的时间
+			remaining = wait - (now - previous);
+		if (remaining <= 0) {
+			// 两次间隔时间超过频率：把方法执行即可
+			clearTimeout(timer);
+			timer = null;
+			previous = now;
+			func.call(this, ...params);
+		} else if (!timer) {//当有定时器时，就不用在设置了
+			// 两次间隔时间没有超过频率，说明还没有达到触发标准呢，设置定时器等待即可（还差多久等多久）
+			timer = setTimeout(() => {
+				clearTimeout(timer);
+				timer = null;
+				previous = new Date();
+				func.call(this, ...params);
+			}, remaining);//差多少时间等多少时间
+		}
+	};
+}
+```
+
+### 柯里化思想
+
+柯理化函数思想：利用闭包保存机制，把一些信息预先存储下来（预处理的思想）
+
+```js
+let res = fn(1,2)(3);
+console.log(res); //=>6  1+2+3
+```
+
+```js
+function fn(...outerArgs){
+	return function (...innerArgs){
+		let args=outerArgs.concat(innerArgs)
+		return args.reduce((n,item)=>n+item)
+	}
+}
+```
+
+### 惰性思想
+
+惰性思想：懒，执行过一遍的东西，如果第二遍执行还是一样的效果，则我们就不想让其重复执行第二遍了 
+
+```js
+function getCss(element, attr) {
+	//处理兼容性
+	if ('getComputedStyle' in window) {
+		getCss = function (element, attr) {
+			return window.getComputedStyle(element)[attr];
+		};
+	} else {
+		getCss = function (element, attr) {
+			return element.currentStyle[attr];
+		};
+	}
+	// 为了第一次也能拿到值
+	return getCss(element, attr);
+}
+getCss(document.body, 'margin');
+getCss(document.body, 'padding');
+getCss(document.body, 'width'); 
+```
+
+### compose 组合函数，把多层函数嵌套调用扁平化
+
+```javascript
+const fn1 = (x, y) => x + y + 10;
+const fn2 = x => x - 10;
+const fn3 = x => x * 10;
+const fn4 = x => x / 10;
+
+// let res = fn4(fn2(fn3(fn1(20))));
+// console.log(res);
+
+function compose(...funcs) {
+	// FUNCS:存储按照顺序执行的函数(数组) =>[fn1, fn3, fn2, fn4]
+	return function anonymous(...args) {
+		// ARGS:存储第一个函数执行需要传递的实参信息(数组)  =>[20]
+		if (funcs.length === 0) return args;
+		if (funcs.length === 1) return funcs[0](...args);
+		return funcs.reduce((N, func) => {
+			// 第一次N的值:第一个函数执行的实参  func是第一个函数
+			// 第二次N的值:上一次func执行的返回值，作为实参传递给下一个函数执行
+			return Array.isArray(N) ? func(...N) : func(N);
+		}, args);
+	};
+}
+let res = compose(fn1, fn3, fn2, fn4)(20, 30);
+```
