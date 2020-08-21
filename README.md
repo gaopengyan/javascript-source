@@ -537,3 +537,134 @@ function isPlainObject(obj) {
 	return typeof Ctor === "function" && fnToString.call(Ctor) === ObjectFunctionString;
 }
 ```
+
+
+### 编写queryURLParams方法实现如下的效果（至少两种方案）
+
+```javascript
+String.prototype.queryURLParams = function queryURLParams(key) {
+	let obj = {};
+	let {
+		search,
+		hash
+	} = new URL(this);
+
+	// 处理HASH
+	if (hash) {
+		obj['_HASH'] = hash.substring(1);
+	}
+
+	// 处理PARAMS	
+	if (search) {
+		search = search.substring(1).split('&');
+		search.forEach(item => {
+			let [key, value] = item.split('=');
+			obj[key] = value;
+		});
+	}
+
+	return key ? obj[key] : obj;
+}
+```
+
+```js
+String.prototype.queryURLParams = function queryURLParams(key) {
+	let obj = {};
+	this.replace(/([^?=&#]+)=([^?=&#]+)/g, (_, key, value) => obj[key] = value);
+	this.replace(/#([^?=&#]+)/g, (_, hash) => obj['_HASH'] = hash);
+	return key ? obj[key] : obj;
+};
+```
+
+```js
+et url = "http://www.baidu.cn/?lx=1&from=wx#video";
+console.log(url.queryURLParams("from")); //=>"wx"
+console.log(url.queryURLParams("_HASH")); //=>"video"
+console.log(url.queryURLParams()); */
+
+```
+
+### 利用数据劫持
+
+```js
+var a = ?;
+if (a == 1 && a == 2 && a == 3) {
+    console.log('OK');
+}
+```
+
+方案1：
+
+```js
+/*
+ * == 比较的时候，如果两边的数据类型不一致，默认会进行数据类型转换  
+ *   解决方案1：对象转换为数字，需要调取valueOf/toString（如果对象私有属性中有toString，则不会再向原型上去查找）
+ */
+var a = {
+ 	i: 0,
+ 	toString() {
+ 		// this->a
+ 		return ++this.i;
+    }
+}; 
+let a = [1, 2, 3];
+a.toString = a.shift; 
+if (a == 1 && a == 2 && a == 3) {
+ 	console.log('OK');
+}
+```
+
+方案2：
+```js
+// 利用数据劫持 
+// Object.defineProperty
+// Proxy
+// 获取a，如果a不是变量，就是window的一个属性...
+
+let i = 0;
+Object.defineProperty(window, 'a', {
+	get() {
+		return ++i;
+	}
+});
+if (a == 1 && a == 2 && a == 3) {
+	console.log('OK');
+}
+```
+
+### 编写queryURLParams方法实现如下的效果
+
+```js
+String.prototype.queryURLParams = function queryURLParams(key) {
+	let obj = {};
+	let {
+		search,
+		hash
+	} = new URL(this);
+
+	// 处理HASH
+	if (hash) {
+		obj['_HASH'] = hash.substring(1);
+	}
+
+	// 处理PARAMS	
+	if (search) {
+		search = search.substring(1).split('&');
+		search.forEach(item => {
+			let [key, value] = item.split('=');
+			obj[key] = value;
+		});
+	}
+
+	return key ? obj[key] : obj;
+}
+```
+
+```js
+String.prototype.queryURLParams = function queryURLParams(key) {
+	let obj = {};
+	this.replace(/([^?=&#]+)=([^?=&#]+)/g, (_, key, value) => obj[key] = value);
+	this.replace(/#([^?=&#]+)/g, (_, hash) => obj['_HASH'] = hash);
+	return key ? obj[key] : obj;
+}
+```
